@@ -1,0 +1,120 @@
+name: bombsquad
+base: core20
+version: '1.5.27'
+summary: Bomb Squad
+description: |
+  8 Player Party Game Madness!
+  Blow up your friends in mini-games ranging from capture-the-flag to hockey.
+  Featuring gratuitous explosions, advanced ragdoll face-plant physics,
+  pirates, ninjas, barbarians, insane chefs, and more. Supports PS3 controllers,
+  XBox 360 controllers, most USB/Bluetooth gamepads, and even iOS and Android
+  devices as controllers via the free 'BombSquad Remote' app. Bombs Away!
+grade: stable
+confinement: strict
+apps:
+  bombsquad:
+    environment:
+      ALSA_CONFIG_PATH: /snap/$SNAPCRAFT_PROJECT_NAME/current/usr/share/alsa
+      PYTHONHOME: "$SNAP/usr"
+      LIBGL_DRIVERS_PATH: "$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/dri"
+      LD_LIBRARY_PATH: "$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/pulseaudio:$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/mesa:$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/mesa-egl:/var/lib/snapd/lib/gl:$LD_LIBRARY_PATH"
+      __EGL_VENDOR_LIBRARY_DIRS: "/var/lib/snapd/lib/glvnd/egl_vendor.d:$__EGL_VENDOR_LIBRARY_DIRS"
+    command: bin/launcher
+    command-chain: ["snap/command-chain/alsa-launch"]
+    plugs:
+      - alsa
+      - x11
+      - opengl
+      - desktop
+      - network
+      - network-bind
+      - audio-playback
+      - joystick
+      - screen-inhibit-control
+
+layout:
+  /usr/share/alsa:
+    bind: $SNAP/usr/share/alsa
+
+parts:
+  launcher:
+    plugin: dump
+    source: snap/local
+  bombsquad:
+    after: [alsa-mixin]
+    plugin: dump
+    source: http://www.files.froemling.net/bombsquad/builds/BombSquad_Linux_$SNAPCRAFT_PROJECT_VERSION.tar.gz
+    stage-packages:
+      - libopenal1
+      - libbsd0
+      - libffi7
+      - libflac8
+      - libgl1-mesa-dri
+      - libgl1-mesa-glx
+      - libglu1-mesa
+      - liblz4-1
+      - liblzma5
+      - libogg0
+      - libpython3.8
+      - libsdl2-2.0-0
+      - libsndio7.0
+      - libvorbis0a
+      - libvorbisfile3
+      - libx11-6
+      - libxau6
+      - libxcb1
+      - libxdmcp6
+      - libopengl0
+  alsa-mixin:
+    plugin: nil
+    source: https://github.com/diddlesnaps/snapcraft-alsa.git
+    override-pull: |
+      cat > asound.conf <<EOF
+      pcm.!default {
+          type pulse
+          fallback "sysdefault"
+          hint {
+              show on
+              description "Default ALSA Output (currently PulseAudio Sound Server)"
+          }
+      }
+      ctl.!default {
+          type pulse
+          fallback "sysdefault"
+      }
+      seq.default {
+          type hw
+      }
+      seq.hw {
+          type hw
+      }
+      EOF
+      cat > alsa-launch <<EOF
+      #!/bin/bash
+      export ALSA_CONFIG_PATH="\$SNAP/etc/asound.conf"
+      if [ -d "\$SNAP/usr/lib/alsa-lib" ]; then
+          export LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:\$SNAP/usr/lib/alsa-lib"
+      elif [ -d "\$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/alsa-lib" ]; then
+          export LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:\$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/alsa-lib"
+      fi
+      export LD_LIBRARY_PATH="\$LD_LIBRARY_PATH:\$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/pulseaudio"
+      # Make PulseAudio socket available inside the snap-specific \$XDG_RUNTIME_DIR
+      if [ -n "\$XDG_RUNTIME_DIR" ]; then
+          pulsenative="pulse/native"
+          pulseaudio_sockpath="\$XDG_RUNTIME_DIR/../\$pulsenative"
+          if [ -S "\$pulseaudio_sockpath" ]; then
+              export PULSE_SERVER="unix:\${pulseaudio_sockpath}"
+          fi
+      fi
+      exec "\$@"
+      EOF
+      chmod +x alsa-launch
+    override-build: |
+      snapcraftctl build
+      install -m644 -D -t $SNAPCRAFT_PART_INSTALL/etc asound.conf
+      install -m755 -D -t $SNAPCRAFT_PART_INSTALL/snap/command-chain alsa-launch
+    build-packages:
+      - libasound2-dev
+    stage-packages:
+      - libasound2
+      - libasound2-plugins

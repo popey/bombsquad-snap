@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Bombsquad
+Comment=8 Player Party Game Madness!
+Exec=bombsquad
+Icon=${SNAP}/meta/gui/bombsquad.png
+Type=Application
+Categories=Game;
