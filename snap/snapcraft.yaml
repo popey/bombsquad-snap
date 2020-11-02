@@ -11,6 +11,8 @@ description: |
   devices as controllers via the free 'BombSquad Remote' app. Bombs Away!
 grade: stable
 confinement: strict
+architectures:
+  build-on: amd64
 apps:
   bombsquad:
     environment:
