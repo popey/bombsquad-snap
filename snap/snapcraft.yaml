@@ -1,6 +1,6 @@
 name: bombsquad
 base: core20
-version: '1.5.27'
+version: '1.5.29'
 summary: Bomb Squad
 description: |
   8 Player Party Game Madness!
@@ -19,7 +19,7 @@ apps:
       ALSA_CONFIG_PATH: /snap/$SNAPCRAFT_PROJECT_NAME/current/usr/share/alsa
       PYTHONHOME: "$SNAP/usr"
       LIBGL_DRIVERS_PATH: "$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/dri"
-      LD_LIBRARY_PATH: "$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/pulseaudio:$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/mesa:$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/mesa-egl:/var/lib/snapd/lib/gl:$LD_LIBRARY_PATH"
+      LD_LIBRARY_PATH: "$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/pulseaudio:$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/mesa:$SNAP/usr/lib/$SNAPCRAFT_ARCH_TRIPLET/mesa-egl:/var/lib/snapd/lib/gl"
       __EGL_VENDOR_LIBRARY_DIRS: "/var/lib/snapd/lib/glvnd/egl_vendor.d:$__EGL_VENDOR_LIBRARY_DIRS"
     command: bin/launcher
     command-chain: ["snap/command-chain/alsa-launch"]
