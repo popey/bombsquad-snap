@@ -57,7 +57,7 @@ parts:
       - liblz4-1
       - liblzma5
       - libogg0
-      - libpython3.8
+      - libpython3.9
       - libsdl2-2.0-0
       - libsndio7.0
       - libvorbis0a
