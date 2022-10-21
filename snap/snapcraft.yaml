@@ -45,7 +45,7 @@ parts:
   bombsquad:
     after: [alsa-mixin]
     plugin: dump
-    source: http://www.files.froemling.net/bombsquad/builds/BombSquad_Linux_$SNAPCRAFT_PROJECT_VERSION.tar.gz
+    source: https://files.ballistica.net/bombsquad/builds/BombSquad_Linux_x86_64_$SNAPCRAFT_PROJECT_VERSION.tar.gz
     stage-packages:
       - libopenal1
       - libbsd0
