@@ -1,5 +1,6 @@
 # bombsquad-snap
 
+[![bombsquad](https://github.com/popey/bombsquad-snap/actions/workflows/test-snap-can-build.yml/badge.svg)](https://github.com/popey/bombsquad-snap/actions)
 [![bombsquad](https://snapcraft.io/bombsquad/badge.svg)](https://snapcraft.io/bombsquad)
 [![bombsquad](https://snapcraft.io/bombsquad/trending.svg?name=0)](https://snapcraft.io/bombsquad)
 
