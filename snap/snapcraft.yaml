@@ -64,7 +64,7 @@ parts:
       - liblz4-1
       - liblzma5
       - libogg0
-      - libpython3.9
+      - libpython3.12
       - libsdl2-2.0-0
       - libsndio7.0
       - libvorbis0a
@@ -74,8 +74,8 @@ parts:
       - libxcb1
       - libxdmcp6
       - libopengl0
-      - python3.11
-      - libpython3.11
+      - python3.12
+      - libpython3.12
 
   alsa-mixin:
     plugin: dump
