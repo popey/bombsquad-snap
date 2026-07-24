@@ -44,6 +44,7 @@ class RecipeTest(unittest.TestCase):
             recipe.write_text(
                 "name: bombsquad\n"
                 "version: '1.7.39'\n"
+                "source: $SNAPCRAFT_PROJECT_VERSION\n"
                 "parts:\n"
                 "  nested:\n"
                 "    version: 'must-not-change'\n"
@@ -56,6 +57,7 @@ class RecipeTest(unittest.TestCase):
                 recipe.read_text(),
                 "name: bombsquad\n"
                 "version: '1.7.63'\n"
+                "source: $SNAPCRAFT_PROJECT_VERSION\n"
                 "parts:\n"
                 "  nested:\n"
                 "    version: 'must-not-change'\n",
