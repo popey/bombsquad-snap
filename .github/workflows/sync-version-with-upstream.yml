@@ -1,0 +1,52 @@
+name: 🔄 Check for stable BombSquad releases
+
+on:
+  schedule:
+    - cron: "17 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: bombsquad-upstream-version
+  cancel-in-progress: true
+
+jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Check stable release and artifact
+        id: upstream
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 scripts/check_upstream.py --write --github-output "$GITHUB_OUTPUT"
+
+      - name: Build updated snap
+        if: steps.upstream.outputs.needs_update == 'true'
+        uses: snapcore/action-build@3bdaa03e1ba6bf59a65f84a751d943d549a54e79 # v1
+
+      - name: Create version update pull request
+        if: steps.upstream.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: auto-update-bombsquad
+          delete-branch: true
+          add-paths: snap/snapcraft.yaml
+          commit-message: "Update BombSquad to ${{ steps.upstream.outputs.latest }}"
+          title: "Update BombSquad to ${{ steps.upstream.outputs.latest }}"
+          body: |
+            Automated stable BombSquad version update.
+
+            - Previous: `${{ steps.upstream.outputs.current }}`
+            - New: `${{ steps.upstream.outputs.latest }}`
+            - [Upstream release](${{ steps.upstream.outputs.release_url }})
+            - [Linux x86-64 artifact](${{ steps.upstream.outputs.artifact_url }})
+            - [Validation build](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            The workflow rejects prereleases, verifies the archive exists, never downgrades the recipe, and builds the updated snap before creating this PR.
