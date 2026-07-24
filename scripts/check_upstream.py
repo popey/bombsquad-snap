@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 from typing import Any
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 RELEASE_API = "https://api.github.com/repos/efroemling/ballistica/releases/latest"
@@ -67,14 +68,21 @@ def fetch_latest_release() -> dict[str, Any]:
 
 
 def verify_artifact(url: str) -> None:
-    request = Request(url, headers={"Range": "bytes=0-0", "User-Agent": USER_AGENT})
-    with urlopen(request, timeout=90) as response:
-        if response.status not in {200, 206}:
-            raise ValueError(f"Artifact check returned HTTP {response.status}")
-        response.read(1)
+    request = Request(url, headers={"Range": "bytes=0-1", "User-Agent": USER_AGENT})
+    try:
+        with urlopen(request, timeout=90) as response:
+            if response.status not in {200, 206}:
+                raise ValueError(f"Artifact check returned HTTP {response.status}")
+            if response.read(2) != b"\x1f\x8b":
+                raise ValueError("Artifact check did not return a gzip archive")
+    except HTTPError as error:
+        raise ValueError(f"Artifact check returned HTTP {error.code}") from error
 
 
 def write_outputs(path: Path, values: dict[str, str]) -> None:
+    for key, value in values.items():
+        if "\n" in value or "\r" in value:
+            raise ValueError(f"GitHub output {key!r} contains a line break")
     with path.open("a") as output:
         for key, value in values.items():
             output.write(f"{key}={value}\n")
