@@ -14,6 +14,9 @@ ARTIFACT_ROOT = "https://files.ballistica.net/bombsquad/builds/old"
 USER_AGENT = "popey/bombsquad-snap upstream-check"
 STABLE_VERSION = re.compile(r"^\d+\.\d+\.\d+$")
 VERSION_LINE = re.compile(r"(?m)^version:\s*(['\"]?)([^'\"\s]+)\1\s*$")
+# Ballistica's live service requires post-release build 22902, while v1.7.63
+# contains build 22870 and is rejected as `tooold`.
+BLOCKED_RELEASES = frozenset({"1.7.63"})
 
 
 def parse_latest_release(payload: dict[str, Any]) -> str:
@@ -33,6 +36,8 @@ def version_tuple(version: str) -> tuple[int, int, int]:
 
 def determine_update(current: str, payload: dict[str, Any]) -> str | None:
     latest = parse_latest_release(payload)
+    if latest in BLOCKED_RELEASES:
+        return None
     return latest if version_tuple(latest) > version_tuple(current) else None
 
 

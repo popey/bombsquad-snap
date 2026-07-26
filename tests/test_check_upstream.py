@@ -31,10 +31,14 @@ class ReleaseParsingTest(unittest.TestCase):
             parse_latest_release({"tag_name": "v1.8.0a55", "draft": False, "prerelease": False})
 
     def test_only_updates_to_a_newer_version(self):
-        payload = {"tag_name": "v1.7.63", "draft": False, "prerelease": False}
-        self.assertEqual(determine_update("1.7.39", payload), "1.7.63")
-        self.assertIsNone(determine_update("1.7.63", payload))
+        payload = {"tag_name": "v1.7.64", "draft": False, "prerelease": False}
+        self.assertEqual(determine_update("1.7.39", payload), "1.7.64")
+        self.assertIsNone(determine_update("1.7.64", payload))
         self.assertIsNone(determine_update("1.8.0", payload))
+
+    def test_skips_a_release_blocked_by_the_live_service(self):
+        payload = {"tag_name": "v1.7.63", "draft": False, "prerelease": False}
+        self.assertIsNone(determine_update("1.7.39", payload))
 
 
 class RecipeTest(unittest.TestCase):
