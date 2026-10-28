@@ -17,28 +17,49 @@ from scripts.check_upstream import (
 )
 
 
-class ReleaseParsingTest(unittest.TestCase):
-    def test_accepts_a_stable_semantic_release(self):
-        self.assertEqual(
-            parse_latest_release({"tag_name": "v1.7.63", "draft": False, "prerelease": False}),
-            "1.7.63",
-        )
+def listing(*versions):
+    return "".join(
+        f'<a href="BombSquad_Linux_x86_64_{version}.tar.gz">build</a>'
+        for version in versions
+    )
 
-    def test_rejects_prereleases_and_alpha_versions(self):
-        with self.assertRaises(ValueError):
-            parse_latest_release({"tag_name": "v1.8.0a55", "draft": False, "prerelease": True})
-        with self.assertRaises(ValueError):
-            parse_latest_release({"tag_name": "v1.8.0a55", "draft": False, "prerelease": False})
+
+class ReleaseParsingTest(unittest.TestCase):
+    def test_selects_latest_stable_numerically(self):
+        self.assertEqual(parse_latest_release(listing("1.7.9", "1.7.64", "1.8.0b24")), "1.7.64")
+
+    def test_prerelease_only_directory_has_no_stable_update(self):
+        self.assertIsNone(parse_latest_release(listing("1.8.0b24")))
+        self.assertIsNone(determine_update("1.7.39", None))
+
+    def test_orders_prereleases_and_final_releases(self):
+        versions = ["1.8.0a55", "1.8.0b9", "1.8.0b24", "1.8.0rc1", "1.8.0"]
+        for end in range(1, len(versions) + 1):
+            with self.subTest(end=end):
+                self.assertEqual(parse_latest_release(listing(*versions[:end]), True), versions[end - 1])
+
+    def test_ignores_archived_server_and_other_architecture_links(self):
+        html = listing("1.8.0b24") + (
+            '<a href="old/BombSquad_Linux_x86_64_9.0.0.tar.gz">old</a>'
+            '<a href="BombSquad_Server_Linux_x86_64_9.0.0.tar.gz">server</a>'
+            '<a href="BombSquad_Linux_Arm64_9.0.0.tar.gz">arm</a>'
+            '<a href="https://example.com/BombSquad_Linux_x86_64_9.0.0.tar.gz">external</a>'
+        )
+        self.assertEqual(parse_latest_release(html, True), "1.8.0b24")
+
+    def test_rejects_missing_or_invalid_builds(self):
+        for html in ("<html>unavailable</html>", listing("bogus")):
+            with self.assertRaisesRegex(ValueError, "No BombSquad"):
+                parse_latest_release(html)
 
     def test_only_updates_to_a_newer_version(self):
-        payload = {"tag_name": "v1.7.64", "draft": False, "prerelease": False}
-        self.assertEqual(determine_update("1.7.39", payload), "1.7.64")
-        self.assertIsNone(determine_update("1.7.64", payload))
-        self.assertIsNone(determine_update("1.8.0", payload))
+        self.assertEqual(determine_update("1.7.39", "1.7.64"), "1.7.64")
+        self.assertEqual(determine_update("1.8.0b9", "1.8.0b24"), "1.8.0b24")
+        self.assertIsNone(determine_update("1.8.0b24", "1.8.0b24"))
+        self.assertIsNone(determine_update("1.8.0", "1.8.0b24"))
 
     def test_skips_a_release_blocked_by_the_live_service(self):
-        payload = {"tag_name": "v1.7.63", "draft": False, "prerelease": False}
-        self.assertIsNone(determine_update("1.7.39", payload))
+        self.assertIsNone(determine_update("1.7.39", "1.7.63"))
 
 
 class RecipeTest(unittest.TestCase):
@@ -48,7 +69,7 @@ class RecipeTest(unittest.TestCase):
             recipe.write_text(
                 "name: bombsquad\n"
                 "version: '1.7.39'\n"
-                "source: $SNAPCRAFT_PROJECT_VERSION\n"
+                "    source: https://files.ballistica.net/bombsquad/builds/old/BombSquad_Linux_x86_64_$SNAPCRAFT_PROJECT_VERSION.tar.gz\n"
                 "parts:\n"
                 "  nested:\n"
                 "    version: 'must-not-change'\n"
@@ -61,7 +82,7 @@ class RecipeTest(unittest.TestCase):
                 recipe.read_text(),
                 "name: bombsquad\n"
                 "version: '1.7.63'\n"
-                "source: $SNAPCRAFT_PROJECT_VERSION\n"
+                "    source: https://files.ballistica.net/bombsquad/builds/BombSquad_Linux_x86_64_$SNAPCRAFT_PROJECT_VERSION.tar.gz\n"
                 "parts:\n"
                 "  nested:\n"
                 "    version: 'must-not-change'\n",
@@ -77,10 +98,10 @@ class RecipeTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 update_recipe_version(recipe, "1.7.63")
 
-    def test_builds_the_archived_linux_artifact_url(self):
+    def test_builds_the_current_linux_artifact_url(self):
         self.assertEqual(
             artifact_url("1.7.63"),
-            "https://files.ballistica.net/bombsquad/builds/old/BombSquad_Linux_x86_64_1.7.63.tar.gz",
+            "https://files.ballistica.net/bombsquad/builds/BombSquad_Linux_x86_64_1.7.63.tar.gz",
         )
 
 
@@ -134,13 +155,17 @@ class GitHubOutputTest(unittest.TestCase):
 
 
 class RecipeSourceTest(unittest.TestCase):
-    def test_recipe_downloads_from_the_verified_archive(self):
+    def test_updated_recipe_downloads_from_the_verified_current_directory(self):
         recipe = Path(__file__).parents[1] / "snap" / "snapcraft.yaml"
         expected = (
             f"source: {ARTIFACT_ROOT}/"
             "BombSquad_Linux_x86_64_$SNAPCRAFT_PROJECT_VERSION.tar.gz"
         )
-        lines = recipe.read_text().splitlines()
+        with tempfile.TemporaryDirectory() as directory:
+            updated = Path(directory) / "snapcraft.yaml"
+            updated.write_text(recipe.read_text())
+            update_recipe_version(updated, "1.8.0b24")
+            lines = updated.read_text().splitlines()
         parts_start = lines.index("parts:")
         part_start = lines.index("  bombsquad:", parts_start + 1)
         part_lines = []

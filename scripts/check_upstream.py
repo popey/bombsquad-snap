@@ -2,41 +2,60 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
+from html.parser import HTMLParser
 from pathlib import Path
 import re
-from typing import Any
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-RELEASE_API = "https://api.github.com/repos/efroemling/ballistica/releases/latest"
-ARTIFACT_ROOT = "https://files.ballistica.net/bombsquad/builds/old"
+ARTIFACT_ROOT = "https://files.ballistica.net/bombsquad/builds"
 USER_AGENT = "popey/bombsquad-snap upstream-check"
 STABLE_VERSION = re.compile(r"^\d+\.\d+\.\d+$")
+BUILD_VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)(?:(a|b|rc)(\d+))?$")
+ARTIFACT_NAME = re.compile(r"^BombSquad_Linux_x86_64_(.+)\.tar\.gz$")
 VERSION_LINE = re.compile(r"(?m)^version:\s*(['\"]?)([^'\"\s]+)\1\s*$")
 # Ballistica's live service requires post-release build 22902, while v1.7.63
 # contains build 22870 and is rejected as `tooold`.
 BLOCKED_RELEASES = frozenset({"1.7.63"})
 
 
-def parse_latest_release(payload: dict[str, Any]) -> str:
-    if payload.get("draft") or payload.get("prerelease"):
-        raise ValueError("Latest GitHub release is not stable")
-    version = str(payload.get("tag_name") or "").removeprefix("v")
-    if not STABLE_VERSION.fullmatch(version):
-        raise ValueError(f"Unsupported stable release version: {version or 'missing'}")
-    return version
+class BuildListing(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.versions: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag != "a":
+            return
+        href = dict(attrs).get("href") or ""
+        match = ARTIFACT_NAME.fullmatch(href)
+        if match and BUILD_VERSION.fullmatch(match[1]):
+            self.versions.add(match[1])
 
 
-def version_tuple(version: str) -> tuple[int, int, int]:
-    if not STABLE_VERSION.fullmatch(version):
+def parse_latest_release(listing: str, include_prereleases: bool = False) -> str | None:
+    parser = BuildListing()
+    parser.feed(listing)
+    if not parser.versions:
+        raise ValueError("No BombSquad Linux x86-64 builds found in current directory")
+    versions = [
+        version for version in parser.versions
+        if include_prereleases or STABLE_VERSION.fullmatch(version)
+    ]
+    return max(versions, key=version_tuple, default=None)
+
+
+def version_tuple(version: str) -> tuple[int, int, int, int, int]:
+    match = BUILD_VERSION.fullmatch(version)
+    if not match:
         raise ValueError(f"Unsupported recipe version: {version}")
-    return tuple(int(part) for part in version.split("."))  # type: ignore[return-value]
+    major, minor, patch, phase, number = match.groups()
+    return (int(major), int(minor), int(patch),
+            {"a": 0, "b": 1, "rc": 2, None: 3}[phase], int(number or 0))
 
 
-def determine_update(current: str, payload: dict[str, Any]) -> str | None:
-    latest = parse_latest_release(payload)
-    if latest in BLOCKED_RELEASES:
+def determine_update(current: str, latest: str | None) -> str | None:
+    if latest is None or latest in BLOCKED_RELEASES:
         return None
     return latest if version_tuple(latest) > version_tuple(current) else None
 
@@ -57,6 +76,15 @@ def update_recipe_version(path: Path, version: str) -> None:
     text = path.read_text()
     _single_version_match(text, path)
     updated = VERSION_LINE.sub(f"version: '{version}'", text, count=1)
+    # Migrate the pinned archive source only when updating its version.
+    updated, count = re.subn(
+        r"(?m)^    source: https://files\.ballistica\.net/bombsquad/builds/(?:old/)?"
+        r"BombSquad_Linux_x86_64_\$SNAPCRAFT_PROJECT_VERSION\.tar\.gz$",
+        f"    source: {ARTIFACT_ROOT}/BombSquad_Linux_x86_64_$SNAPCRAFT_PROJECT_VERSION.tar.gz",
+        updated,
+    )
+    if count != 1:
+        raise ValueError(f"Expected exactly one BombSquad artifact source in {path}, found {count}")
     path.write_text(updated)
 
 
@@ -64,12 +92,10 @@ def artifact_url(version: str) -> str:
     return f"{ARTIFACT_ROOT}/BombSquad_Linux_x86_64_{version}.tar.gz"
 
 
-def fetch_latest_release() -> dict[str, Any]:
-    headers = {"Accept": "application/vnd.github+json", "User-Agent": USER_AGENT}
-    if token := os.environ.get("GITHUB_TOKEN"):
-        headers["Authorization"] = f"Bearer {token}"
-    with urlopen(Request(RELEASE_API, headers=headers), timeout=30) as response:
-        return json.load(response)
+def fetch_latest_release() -> str:
+    request = Request(f"{ARTIFACT_ROOT}/", headers={"User-Agent": USER_AGENT})
+    with urlopen(request, timeout=30) as response:
+        return response.read().decode("utf-8")
 
 
 def verify_artifact(url: str) -> None:
@@ -98,13 +124,15 @@ def main() -> None:
     parser.add_argument("--recipe", type=Path, default=Path("snap/snapcraft.yaml"))
     parser.add_argument("--write", action="store_true", help="Update the recipe when newer")
     parser.add_argument("--github-output", type=Path)
+    parser.add_argument("--include-prereleases", action="store_true",
+                        help="Also follow alpha, beta, and release-candidate builds")
     args = parser.parse_args()
 
     current = read_recipe_version(args.recipe)
-    payload = fetch_latest_release()
-    latest = parse_latest_release(payload)
-    update = determine_update(current, payload)
-    url = artifact_url(latest)
+    listing = fetch_latest_release()
+    latest = parse_latest_release(listing, args.include_prereleases)
+    update = determine_update(current, latest)
+    url = artifact_url(latest) if latest else ""
 
     if update:
         verify_artifact(url)
@@ -113,10 +141,10 @@ def main() -> None:
 
     outputs = {
         "current": current,
-        "latest": latest,
+        "latest": latest or "",
         "needs_update": "true" if update else "false",
         "artifact_url": url,
-        "release_url": str(payload.get("html_url") or ""),
+        "release_url": f"{ARTIFACT_ROOT}/",
     }
     if args.github_output:
         write_outputs(args.github_output, outputs)

@@ -22,8 +22,6 @@ jobs:
 
       - name: Check stable release and artifact
         id: upstream
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
         run: python3 scripts/check_upstream.py --write --github-output "$GITHUB_OUTPUT"
 
       - name: Build updated snap
@@ -45,7 +43,7 @@ jobs:
 
             - Previous: `${{ steps.upstream.outputs.current }}`
             - New: `${{ steps.upstream.outputs.latest }}`
-            - [Upstream release](${{ steps.upstream.outputs.release_url }})
+            - [Upstream builds](${{ steps.upstream.outputs.release_url }})
             - [Linux x86-64 artifact](${{ steps.upstream.outputs.artifact_url }})
             - [Validation build](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
