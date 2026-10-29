@@ -1,6 +1,6 @@
 name: bombsquad
 base: core26
-version: '1.8.3'
+version: '1.8.5'
 summary: Bomb Squad
 description: |
   8 Player Party Game Madness!
@@ -48,7 +48,7 @@ parts:
   bombsquad:
     after: [alsa-mixin]
     plugin: dump
-    source: https://files.ballistica.net/bombsquad/builds/old/BombSquad_Linux_x86_64_$SNAPCRAFT_PROJECT_VERSION.tar.gz
+    source: https://files.ballistica.net/bombsquad/builds/BombSquad_Linux_x86_64_$SNAPCRAFT_PROJECT_VERSION.tar.gz
     override-build: |
       craftctl default
       # Upstream asset files can be owner-only; snap files are owned by root.
