@@ -49,6 +49,10 @@ parts:
     after: [alsa-mixin]
     plugin: dump
     source: https://files.ballistica.net/bombsquad/builds/BombSquad_Linux_x86_64_$SNAPCRAFT_PROJECT_VERSION.tar.gz
+    build-packages: [python3]
+    override-pull: |
+      python3 "$CRAFT_PROJECT_DIR/scripts/download-build.py" \
+        "$SNAPCRAFT_PROJECT_VERSION" "$CRAFT_PART_SRC"
     override-build: |
       craftctl default
       # Upstream asset files can be owner-only; snap files are owned by root.
