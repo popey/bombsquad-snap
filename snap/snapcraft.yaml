@@ -1,6 +1,6 @@
 name: bombsquad
 base: core26
-version: '1.8.10'
+version: '1.8.11'
 summary: Bomb Squad
 description: |
   8 Player Party Game Madness!
